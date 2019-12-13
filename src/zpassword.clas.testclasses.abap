@@ -16,6 +16,10 @@ CLASS ltcl_pw DEFINITION FINAL FOR TESTING
       count_adv_day4 FOR TESTING RAISING cx_static_check,
       count_pw_3 FOR TESTING RAISING cx_static_check,
       no_larger_group_123444 FOR TESTING RAISING cx_static_check,
+      count_adv_day4_p2 FOR TESTING RAISING cx_static_check,
+      no_larger_group_111122 FOR TESTING RAISING cx_static_check,
+      no_larger_group_111334 FOR TESTING RAISING cx_static_check,
+      no_larger_group_122225 FOR TESTING RAISING cx_static_check,
       setup.
 ENDCLASS.
 
@@ -54,21 +58,40 @@ CLASS ltcl_pw IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD count_pw_3.
-    cl_abap_unit_assert=>assert_equals( msg = 'count no pw in 111111 to 111112'
+    cl_abap_unit_assert=>assert_equals( msg = 'count no pw in 123450 to 123480'
                                         exp = 3
                                         act = pw->count_valid( start = 123450
                                                                end   = 123480 ) ).
   ENDMETHOD.
 
   METHOD no_larger_group_123444.
-    cl_abap_unit_assert=>assert_false( msg = 'no double - 444' act = pw->check_increasing( '123444' ) ).
+    cl_abap_unit_assert=>assert_false( msg = 'no double in 123444' act = pw->check_double2( '123444' ) ).
+  ENDMETHOD.
+
+  METHOD no_larger_group_122225.
+    cl_abap_unit_assert=>assert_false( msg = 'no double in 122225' act = pw->check_double2( '122225' ) ).
+  ENDMETHOD.
+
+  METHOD no_larger_group_111122.
+    cl_abap_unit_assert=>assert_true( msg = 'double in 111122' act = pw->check_double2( '111122' ) ).
+  ENDMETHOD.
+
+  METHOD no_larger_group_111334.
+    cl_abap_unit_assert=>assert_true( msg = 'double in 111334' act = pw->check_double2( '111334' ) ).
   ENDMETHOD.
 
   METHOD count_adv_day4.
     cl_abap_unit_assert=>assert_equals( msg = 'count no pw in 137683 to 596253'
-                                        exp = 1864 "Riddle solution :)
+                                        exp = 1864 "part 1 solution :)
                                         act = pw->count_valid( start = 137683
                                                                end   = 596253 ) ).
+  ENDMETHOD.
+
+  METHOD count_adv_day4_p2.
+    cl_abap_unit_assert=>assert_equals( msg = 'count no pw in 137683 to 596253'
+                                        exp = 1258 "part 2 solution :)
+                                        act = pw->count_valid2( start = 137683
+                                                                end   = 596253 ) ).
   ENDMETHOD.
 
   METHOD setup.
