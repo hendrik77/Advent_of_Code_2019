@@ -29,18 +29,21 @@ CLASS zintcode DEFINITION
     CONSTANTS halt TYPE i VALUE 99.
     CONSTANTS input TYPE i VALUE 3.
     CONSTANTS output TYPE i VALUE 4.
+    CONSTANTS immediate TYPE i VALUE 0.
+    CONSTANTS position TYPE i VALUE 1.
     DATA prog TYPE stringtab.
+    DATA parameter_mode TYPE i.
     DATA demo_input TYPE REF TO if_demo_input.
-    data demo_output type ref to if_demo_output.
-    METHODS solve
-      IMPORTING VALUE(pointer) TYPE i.
+    DATA demo_output TYPE REF TO if_demo_output.
+    METHODS calculate
+      IMPORTING VALUE(address) TYPE i.
     METHODS len_instruction
       IMPORTING VALUE(opcode) TYPE i
       RETURNING VALUE(len)    TYPE i.
     METHODS get_input
-      IMPORTING VALUE(pointer) TYPE i.
+      IMPORTING VALUE(address) TYPE i.
     METHODS write_output
-      IMPORTING VALUE(pointer) TYPE i.
+      IMPORTING VALUE(address) TYPE i.
 ENDCLASS.
 
 
@@ -72,31 +75,32 @@ CLASS zintcode IMPLEMENTATION.
 
     DATA(pointer) = 1.
     DO.
+      DATA(offset) = len_instruction( CONV #( prog[ pointer ] ) ).
       CASE prog[ pointer ].
         WHEN add OR multiply.
-          solve( pointer - 1 ).
+          calculate( pointer - 1 ).
         WHEN input.
-          get_input( CONV #( prog[ pointer ] ) ).
+          get_input( pointer - 1 ).
         WHEN output.
-          write_output( CONV #( prog[ pointer ] ) ).
+          write_output( pointer - 1 ).
         WHEN halt.
           EXIT.
         WHEN OTHERS."Error case
           EXIT.
       ENDCASE.
-      pointer = pointer + len_instruction( CONV #( prog[ pointer ] ) ).
+      pointer = pointer + offset.
     ENDDO.
 
   ENDMETHOD.
 
 
-  METHOD solve.
+  METHOD calculate.
 
-    CASE read( pointer ).
+    CASE read( address ).
       WHEN add.
-        write( address = read( pointer + 3 ) value = read( read( pointer + 1 ) ) + read( read( pointer + 2 ) ) ).
+        write( address = read( address + 3 ) value = read( read( address + 1 ) ) + read( read( address + 2 ) ) ).
       WHEN multiply.
-        write( address = read( pointer + 3 ) value = read( read( pointer + 1 ) ) * read( read( pointer + 2 ) ) ).
+        write( address = read( address + 3 ) value = read( read( address + 1 ) ) * read( read( address + 2 ) ) ).
     ENDCASE.
 
   ENDMETHOD.
@@ -110,14 +114,15 @@ CLASS zintcode IMPLEMENTATION.
 
   METHOD get_input.
     DATA str TYPE string.
-
-    demo_input->request( EXPORTING text  =  |Input|
-                         CHANGING  field =  str    ).
+    demo_input->request( EXPORTING text  = |Input|
+                         CHANGING  field = str ).
+    write( address = read( address + 1 ) value = CONV #( str ) ).
 
   ENDMETHOD.
 
   METHOD write_output.
-
+    demo_output->write( read( read( address + 1 ) ) ).
+    demo_output->display( ).
   ENDMETHOD.
 
   METHOD constructor.
