@@ -20,7 +20,18 @@ CLASS ltcl_intcode DEFINITION FINAL FOR TESTING
       input_3099 FOR TESTING RAISING cx_static_check,
       output_4099 FOR TESTING RAISING cx_static_check,
       in_output_304099 FOR TESTING RAISING cx_static_check,
-      write_position_0 FOR TESTING RAISING cx_static_check.
+      write_position_0 FOR TESTING RAISING cx_static_check,
+      parameter_mode_1002_43_4_33 FOR TESTING RAISING cx_static_check,
+      opcode_01002 FOR TESTING RAISING cx_static_check,
+      opcode_11199 FOR TESTING RAISING cx_static_check,
+      opcode_999 FOR TESTING RAISING cx_static_check,
+      opcode_4 FOR TESTING RAISING cx_static_check,
+      instruction_1002 FOR TESTING RAISING cx_static_check,
+      abc_immediate FOR TESTING RAISING cx_static_check,
+      ac_immediate FOR TESTING RAISING cx_static_check,
+      c_immediate FOR TESTING RAISING cx_static_check,
+      offset_1002 FOR TESTING RAISING cx_static_check,
+      negative_int FOR TESTING RAISING cx_static_check.
     METHODS setup.
 ENDCLASS.
 
@@ -104,7 +115,11 @@ CLASS ltcl_intcode IMPLEMENTATION.
                                         act = intcode->read( 0 ) ).
   ENDMETHOD.
 
-    METHOD output_4099.
+  METHOD offset_1002.
+    cl_abap_unit_assert=>assert_equals( msg = 'offset' exp = 4 act = intcode->get_instruction_length( 02 ) ).
+  ENDMETHOD.
+
+  METHOD output_4099.
     DATA output_double TYPE REF TO if_demo_output.
     output_double ?= cl_abap_testdouble=>create( 'if_demo_output' ).
     cl_abap_testdouble=>configure_call( output_double
@@ -129,7 +144,7 @@ CLASS ltcl_intcode IMPLEMENTATION.
     input_double->request( CHANGING field = str ).
     intcode->demo_input = input_double.
 
-     DATA output_double TYPE REF TO if_demo_output.
+    DATA output_double TYPE REF TO if_demo_output.
     output_double ?= cl_abap_testdouble=>create( 'if_demo_output' ).
     cl_abap_testdouble=>configure_call( output_double
       )->ignore_all_parameters( ).
@@ -139,6 +154,66 @@ CLASS ltcl_intcode IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals( msg = '5 as input at address 0'
                                         exp = 5
                                         act = intcode->read( 0 ) ).
+  ENDMETHOD.
+
+  METHOD abc_immediate.
+    intcode->set_parameter( |11101| ).
+    cl_abap_unit_assert=>assert_equals( msg = 'A = 1' exp = 1 act = intcode->a ).
+    cl_abap_unit_assert=>assert_equals( msg = 'B = 1' exp = 1 act = intcode->b ).
+    cl_abap_unit_assert=>assert_equals( msg = 'C = 1' exp = 1 act = intcode->c ).
+  ENDMETHOD.
+
+  METHOD ac_immediate.
+    intcode->set_parameter( |10101| ).
+    cl_abap_unit_assert=>assert_equals( msg = 'A = 1' exp = 1 act = intcode->a ).
+    cl_abap_unit_assert=>assert_equals( msg = 'B = 0' exp = 0 act = intcode->b ).
+    cl_abap_unit_assert=>assert_equals( msg = 'C = 1' exp = 1 act = intcode->c ).
+  ENDMETHOD.
+
+  METHOD c_immediate.
+    intcode->set_parameter( |101| ).
+    cl_abap_unit_assert=>assert_equals( msg = 'A = 0' exp = 0 act = intcode->a ).
+    cl_abap_unit_assert=>assert_equals( msg = 'B = 0' exp = 0 act = intcode->b ).
+    cl_abap_unit_assert=>assert_equals( msg = 'C = 1' exp = 1 act = intcode->c ).
+  ENDMETHOD.
+
+  METHOD opcode_4.
+    cl_abap_unit_assert=>assert_equals( msg = 'opcode 4 = 4' exp = |4| act = intcode->set_parameter( |4| ) ).
+  ENDMETHOD.
+
+  METHOD opcode_01002.
+    cl_abap_unit_assert=>assert_equals( msg = 'opcode 1002 = 02' exp = |02| act = intcode->set_parameter( |01002| ) ).
+  ENDMETHOD.
+
+  METHOD opcode_11199.
+    cl_abap_unit_assert=>assert_equals( msg = 'opcode 11199 = 99' exp = |99| act = intcode->set_parameter( |11199| ) ).
+  ENDMETHOD.
+
+  METHOD opcode_999.
+    cl_abap_unit_assert=>assert_equals( msg = 'opcode 999 = 99' exp = |99| act = intcode->set_parameter( |999| ) ).
+  ENDMETHOD.
+
+  METHOD parameter_mode_1002_43_4_33.
+    intcode->load( |1002,4,3,4,33| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = '33 * 3 = 99'
+                                        exp = 99
+                                        act = intcode->read( 4 ) ).
+  ENDMETHOD.
+
+  METHOD negative_int.
+    intcode->load( |1101,100,-1,4,0| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'negative 100 - 11 = 99'
+                                        exp = 99
+                                        act = intcode->read( 4 ) ).
+  ENDMETHOD.
+
+  METHOD instruction_1002.
+    intcode->set_parameter( |1002| ).
+    cl_abap_unit_assert=>assert_initial( msg = 'instruction 1002 A initial' act = intcode->a ).
+    cl_abap_unit_assert=>assert_equals( msg = 'instruction 1002 B = 1' exp = 1 act = intcode->b ).
+    cl_abap_unit_assert=>assert_equals( msg = 'instruction 1002 C = 0' exp = 0 act = intcode->c ).
   ENDMETHOD.
 
 ENDCLASS.
