@@ -55,7 +55,10 @@ CLASS ltcl_intcode DEFINITION FINAL FOR TESTING
       day5_test5_no2 FOR TESTING RAISING cx_static_check,
       day5_test6_no2 FOR TESTING RAISING cx_static_check,
       day5_test6 FOR TESTING RAISING cx_static_check,
-      day5_test7 FOR TESTING RAISING cx_static_check.
+      day5_test7_input7 FOR TESTING RAISING cx_static_check,
+      day5_test7_input8 FOR TESTING RAISING cx_static_check,
+      day5_test7_input9 FOR TESTING RAISING cx_static_check,
+      unkown_opcode FOR TESTING RAISING cx_static_check.
     METHODS setup.
     METHODS create_input_double
       IMPORTING
@@ -203,40 +206,52 @@ CLASS ltcl_intcode IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD abc_immediate.
-    intcode->set_parameter_mode( |11101| ).
+    intcode->load( |11101| ).
+    intcode->set_parameter( 0 ).
     cl_abap_unit_assert=>assert_equals( msg = 'A = 1' exp = 1 act = intcode->a ).
     cl_abap_unit_assert=>assert_equals( msg = 'B = 1' exp = 1 act = intcode->b ).
     cl_abap_unit_assert=>assert_equals( msg = 'C = 1' exp = 1 act = intcode->c ).
   ENDMETHOD.
 
   METHOD ac_immediate.
-    intcode->set_parameter_mode( |10101| ).
+    intcode->load( |10101| ).
+    intcode->set_parameter( 0 ).
     cl_abap_unit_assert=>assert_equals( msg = 'A = 1' exp = 1 act = intcode->a ).
     cl_abap_unit_assert=>assert_equals( msg = 'B = 0' exp = 0 act = intcode->b ).
     cl_abap_unit_assert=>assert_equals( msg = 'C = 1' exp = 1 act = intcode->c ).
   ENDMETHOD.
 
   METHOD c_immediate.
-    intcode->set_parameter_mode( |101| ).
+    intcode->load( |101| ).
+    intcode->set_parameter( 0 ).
     cl_abap_unit_assert=>assert_equals( msg = 'A = 0' exp = 0 act = intcode->a ).
     cl_abap_unit_assert=>assert_equals( msg = 'B = 0' exp = 0 act = intcode->b ).
     cl_abap_unit_assert=>assert_equals( msg = 'C = 1' exp = 1 act = intcode->c ).
   ENDMETHOD.
 
   METHOD opcode_4.
-    cl_abap_unit_assert=>assert_equals( msg = 'opcode 4 = 4' exp = |4| act = intcode->set_parameter_mode( |4| ) ).
+    intcode->load( |4| ).
+    intcode->set_parameter( 0 ).
+    intcode->set_opcode( 0 ).
+    cl_abap_unit_assert=>assert_equals( msg = 'opcode 4 = 4' exp = |4| act = intcode->opcode ).
   ENDMETHOD.
 
   METHOD opcode_01002.
-    cl_abap_unit_assert=>assert_equals( msg = 'opcode 1002 = 02' exp = |02| act = intcode->set_parameter_mode( |01002| ) ).
+    intcode->load( |01002| ).
+    intcode->set_opcode( 0 ).
+    cl_abap_unit_assert=>assert_equals( msg = 'opcode 1002 = 02' exp = |02| act = intcode->opcode ).
   ENDMETHOD.
 
   METHOD opcode_11199.
-    cl_abap_unit_assert=>assert_equals( msg = 'opcode 11199 = 99' exp = |99| act = intcode->set_parameter_mode( |11199| ) ).
+    intcode->load( |11199| ).
+    intcode->set_opcode( 0 ).
+    cl_abap_unit_assert=>assert_equals( msg = 'opcode 11199 = 99' exp = |99| act = intcode->opcode ).
   ENDMETHOD.
 
   METHOD opcode_999.
-    cl_abap_unit_assert=>assert_equals( msg = 'opcode 999 = 99' exp = |99| act = intcode->set_parameter_mode( |999| ) ).
+    intcode->load( |999| ).
+    intcode->set_opcode( 0 ).
+    cl_abap_unit_assert=>assert_equals( msg = 'opcode 999 = 99' exp = |99| act = intcode->opcode ).
   ENDMETHOD.
 
   METHOD parameter_mode_1002_43_4_33.
@@ -256,7 +271,9 @@ CLASS ltcl_intcode IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD instruction_1002.
-    intcode->set_parameter_mode( |1002| ).
+    intcode->load( |1002| ).
+    intcode->set_opcode( 0 ).
+    intcode->set_parameter( 0 ).
     cl_abap_unit_assert=>assert_initial( msg = 'instruction 1002 A initial' act = intcode->a ).
     cl_abap_unit_assert=>assert_equals( msg = 'instruction 1002 B = 1' exp = 1 act = intcode->b ).
     cl_abap_unit_assert=>assert_equals( msg = 'instruction 1002 C = 0' exp = 0 act = intcode->c ).
@@ -264,26 +281,36 @@ CLASS ltcl_intcode IMPLEMENTATION.
 
   METHOD jump_if_true.
     intcode->load( |1105,1,8| ).
-    intcode->set_parameter_mode( |1105| ).
-    cl_abap_unit_assert=>assert_equals( msg = 'true -> 8 + 1' exp = 8 + 1 act = intcode->log_exp( 0 ) ).
+    intcode->set_opcode( 0 ).
+    intcode->set_parameter( 0 ).
+    cl_abap_unit_assert=>assert_equals( msg = 'true -> 8' exp = 8 act = intcode->log_exp( 0 ) ).
   ENDMETHOD.
 
   METHOD no_jump_if_true.
     intcode->load( |1105,0,8,1,0,0,2,99| ).
-    intcode->set_parameter_mode( |1105| ).
-    cl_abap_unit_assert=>assert_equals( msg = 'false, next pos' exp = 4 act = intcode->log_exp( 0 ) ).
+    intcode->set_opcode( 0 ).
+    intcode->set_parameter( 0 ).
+    cl_abap_unit_assert=>assert_equals( msg = 'false, new address' exp = 3 act = intcode->log_exp( 0 ) ).
   ENDMETHOD.
 
   METHOD jump_if_false.
     intcode->load( |1106,0,8,1,0,0,2,99| ).
-    intcode->set_parameter_mode( |1106| ).
-    cl_abap_unit_assert=>assert_equals( msg = 'false -> 8 + 1' exp = 8 + 1 act = intcode->log_exp( 0 ) ).
+    intcode->set_opcode( 0 ).
+    intcode->set_parameter( 0 ).
+    cl_abap_unit_assert=>assert_equals( msg = 'false -> 8' exp = 8 act = intcode->log_exp( 0 ) ).
+  ENDMETHOD.
+
+  METHOD unkown_opcode.
+    intcode->load( |67,1101,1,1,0,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'unkown statement: halt, no add' exp = 67 act = intcode->read( 0 )  ).
   ENDMETHOD.
 
   METHOD no_jump_if_false.
     intcode->load( |1106,1,8,1,0,0,2,99| ).
-    intcode->set_parameter_mode( |1106| ).
-    cl_abap_unit_assert=>assert_equals( msg = 'false, next pos for pointer 4' exp = 4 act = intcode->log_exp( 0 ) ).
+    intcode->set_opcode( 0 ).
+    intcode->set_parameter( 0 ).
+    cl_abap_unit_assert=>assert_equals( msg = 'false, new address = 3' exp = 3 act = intcode->log_exp( 0 ) ).
   ENDMETHOD.
 
   METHOD halt_jump_if_false.
@@ -399,13 +426,26 @@ CLASS ltcl_intcode IMPLEMENTATION.
                        program = |3,3,1105,-1,9,1101,0,0,12,4,12,99,1| ).
   ENDMETHOD.
 
-  METHOD day5_test7.
-*    test_input_output( msg = |large example: if below 8 -> 999|
-*                       input = |7|
-*                       output = |999|
-*                       program = |3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99| ).
+  METHOD day5_test7_input7.
+    test_input_output( msg = |large example: if below 8 -> 999|
+                       input = |7|
+                       output = |999|
+                       program = |3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99| ).
   ENDMETHOD.
 
+  METHOD day5_test7_input8.
+    test_input_output( msg = |large example: if below 8 -> 999|
+                       input = |8|
+                       output = |1000|
+                       program = |3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99| ).
+  ENDMETHOD.
+
+  METHOD day5_test7_input9.
+    test_input_output( msg = |large example: if below 8 -> 999|
+                       input = |9|
+                       output = |1001|
+                       program = |3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99| ).
+  ENDMETHOD.
 
   METHOD create_input_double.
     DATA str TYPE string.

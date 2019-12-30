@@ -40,27 +40,30 @@ CLASS zintcode DEFINITION
     DATA demo_input TYPE REF TO if_demo_input.
     DATA demo_output TYPE REF TO if_demo_output.
     DATA output_text TYPE string.
-    DATA: a TYPE i, b TYPE i, c TYPE i.
+    DATA: a      TYPE i,
+          b      TYPE i,
+          c      TYPE i,
+          param1 TYPE i,
+          param2 TYPE i,
+          param3 TYPE i,
+          opcode TYPE i.
     METHODS calculate
       IMPORTING VALUE(address) TYPE i.
     METHODS get_instruction_length
       IMPORTING VALUE(opcode) TYPE i
-      RETURNING VALUE(len)    TYPE i.
+      RETURNING VALUE(length)    TYPE i.
     METHODS get_input
       IMPORTING VALUE(address) TYPE i.
     METHODS write_output
       IMPORTING VALUE(address) TYPE i.
-    METHODS set_parameter_mode
-      IMPORTING VALUE(instruction) TYPE string
-      RETURNING VALUE(opcode)      TYPE i.
-    METHODS get_opcode
+    METHODS set_parameter
+      IMPORTING VALUE(address) TYPE i.
+    METHODS set_opcode
       IMPORTING
-        VALUE(instruction) TYPE string
-      RETURNING
-        VALUE(opcode)      TYPE i.
+        VALUE(address) TYPE i.
     METHODS log_exp
       IMPORTING VALUE(address) TYPE i
-      RETURNING VALUE(pointer) TYPE i.
+      RETURNING VALUE(new_address) TYPE i.
 ENDCLASS.
 
 
@@ -91,20 +94,21 @@ CLASS zintcode IMPLEMENTATION.
 
     DATA(pointer) = 1.
     DO.
-      DATA(opcode) = set_parameter_mode( prog[ pointer ] ).
-
+      DATA(address) = pointer - 1." address always "- 1" -> intcode starts with 0, ABAP table index with 1
+      set_opcode( address ).
+      set_parameter( address ).
       CASE opcode.
         WHEN add OR multiply.
-          calculate( pointer - 1 ). " address always "- 1" -> intcode starts with 0, ABAP table index with 1
+          calculate( address ).
           pointer = pointer + get_instruction_length( opcode ).
         WHEN input.
-          get_input( pointer - 1 ).
+          get_input( address ).
           pointer = pointer + get_instruction_length( opcode ).
         WHEN output.
-          write_output( pointer - 1 ).
+          write_output( address ).
           pointer = pointer + get_instruction_length( opcode ).
         WHEN jump_if_true OR jump_if_false OR less_than OR equals.
-          pointer = log_exp( pointer - 1 ).
+          pointer = log_exp( address ) + 1.
         WHEN halt.
           IF output_text IS NOT INITIAL.
             demo_output->display( output_text ).
@@ -118,75 +122,54 @@ CLASS zintcode IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD calculate.
-    DATA(param1) = COND i( LET p = read( address + 1 ) IN
-                           WHEN c = immediate THEN p
-                           WHEN c = position  THEN read( p ) ).
-    DATA(param2) = COND i( LET p = read( address + 2 ) IN
-                           WHEN b = immediate THEN p
-                           WHEN b = position  THEN read( p ) ).
-    DATA(new_address) = COND i( WHEN a = immediate THEN address + 3
-                                WHEN a = position  THEN read( address + 3 ) ).
-    CASE get_opcode( CONV #( read( address ) ) ).
+    CASE opcode.
       WHEN add.
-        write( address = new_address value = param1 + param2 ).
+        write( address = param3 value = param1 + param2 ).
       WHEN multiply.
-        write( address = new_address value = param1 * param2 ).
+        write( address = param3 value = param1 * param2 ).
     ENDCASE.
   ENDMETHOD.
 
   METHOD log_exp.
-    DATA(opcode) = get_opcode( CONV #( read( address ) ) ).
-    DATA(param1) = SWITCH i( LET p = read( address + 1 ) IN
-                             c WHEN immediate THEN p
-                               WHEN position  THEN read( p ) ).
-    DATA(param2) = SWITCH i( LET p = read( address + 2 ) IN
-                             b WHEN immediate THEN p
-                               WHEN position  THEN read( p ) ).
-    IF opcode = less_than OR opcode = equals.
-      DATA(param3) = SWITCH i( a  WHEN immediate THEN address + 3
-                                  WHEN position  THEN read( address + 3 ) ).
-    ENDIF.
-
     CASE opcode.
       WHEN jump_if_true OR jump_if_false.
-        pointer = COND #( WHEN opcode = jump_if_true AND param1 <> 0
+        new_address = COND #( WHEN opcode = jump_if_true AND param1 <> 0
                             OR opcode = jump_if_false AND param1 = 0
-                          THEN param2 + 1
-                          ELSE address + 1 + get_instruction_length( jump_if_true ) ).
+                          THEN param2
+                          ELSE address + get_instruction_length( jump_if_true ) ).
       WHEN less_than OR equals.
         write( address = param3
                value   = COND #( WHEN opcode = less_than AND param1 < param2
                                    OR opcode = equals    AND param1 = param2
                                  THEN 1
                                  ELSE 0 ) ).
-        pointer = address + 1 + get_instruction_length( opcode ). " + 1 due to internal table starts at 0
+        new_address = address + get_instruction_length( opcode ). " + 1 due to internal table starts at 0
     ENDCASE.
 
   ENDMETHOD.
 
   METHOD get_instruction_length.
-    len = COND #( WHEN opcode = halt THEN 1
-                  WHEN opcode = input
-                    OR opcode = output THEN 2
-                  WHEN opcode = jump_if_true
-                    OR opcode = jump_if_false THEN 3
-                  WHEN opcode = add
-                    OR opcode = multiply
-                    OR opcode = less_than
-                    OR opcode = equals THEN 4 ).
+    length = COND #(  WHEN opcode = input
+                        OR opcode = output THEN 2
+                      WHEN opcode = jump_if_true
+                        OR opcode = jump_if_false THEN 3
+                      WHEN opcode = add
+                        OR opcode = multiply
+                        OR opcode = less_than
+                        OR opcode = equals THEN 4 ).
   ENDMETHOD.
 
   METHOD get_input.
     DATA str TYPE string.
     demo_input->request( EXPORTING text  = |Input|
                          CHANGING  field = str ).
-    write( address = read( address + 1 ) value = CONV #( str ) ).
+    write( address = param1 value = CONV #( str ) ).
   ENDMETHOD.
 
   METHOD write_output.
     output_text = COND #( WHEN output_text IS INITIAL
-                          THEN condense( read( read( address + 1 ) ) )
-                          ELSE condense( output_text ) && |\n{ read( read( address + 1 ) ) }| ).
+                          THEN condense( |{ param1 }| )
+                          ELSE condense( output_text && |\n| && param1 ) ).
   ENDMETHOD.
 
   METHOD constructor.
@@ -194,20 +177,17 @@ CLASS zintcode IMPLEMENTATION.
     demo_output = cl_demo_output=>new( ).
   ENDMETHOD.
 
-  METHOD get_opcode.
+  METHOD set_opcode.
+    DATA(instruction) = prog[ address + 1 ].
     opcode = substring_from( val = instruction regex = '..$|.$' ).
   ENDMETHOD.
 
-  METHOD set_parameter_mode.
-    " return opcode
-    opcode = get_opcode( instruction ).
-
+  METHOD set_parameter.
+    DATA(instruction) = prog[ address + 1 ].
     " ABC in position mode per default
-    CLEAR: a,b,c.
+    CLEAR: a,b,c,param1,param2,param3.
     " set ABC according to instruction
     CASE strlen( instruction ).
-      WHEN 1 OR 2.
-        RETURN. "only opcode in instruction
       WHEN 3.
         c = instruction(1).
       WHEN 4.
@@ -218,6 +198,38 @@ CLASS zintcode IMPLEMENTATION.
         b = instruction+1(1).
         c = instruction+2(1).
     ENDCASE.
+
+    " set parameter if exist for opcode
+    param1 = SWITCH #( opcode WHEN add
+                                OR multiply
+                                OR equals
+                                OR less_than
+                                OR output
+                                OR jump_if_true
+                                OR jump_if_false
+                              THEN SWITCH i( LET pos = read( address + 1 ) IN
+                                             c WHEN immediate THEN pos
+                                               WHEN position  THEN read( pos ) )
+    " write position in param1 differs from read -> write to parameter or to position mentioned in parameter
+                              WHEN input
+                              THEN SWITCH i( c WHEN immediate THEN address + 1
+                                               WHEN position  THEN read( address + 1 ) ) ).
+    param2 = SWITCH #( opcode WHEN add
+                                OR multiply
+                                OR jump_if_true
+                                OR jump_if_false
+                                OR equals
+                                OR less_than
+                              THEN SWITCH i( LET pos = read( address + 2 ) IN
+                                             b WHEN immediate THEN pos
+                                               WHEN position  THEN read( pos ) ) ).
+    " write position in param1 differs from read -> write to parameter pos or to position mentioned in parameter
+    param3 = SWITCH #( opcode WHEN add
+                                OR multiply
+                                OR equals
+                                OR less_than
+                              THEN SWITCH i( a WHEN immediate THEN address + 3
+                                               WHEN position  THEN read( address + 3 ) ) ).
   ENDMETHOD.
 
 ENDCLASS.
