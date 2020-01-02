@@ -58,7 +58,21 @@ CLASS ltcl_intcode DEFINITION FINAL FOR TESTING
       day5_test7_input7 FOR TESTING RAISING cx_static_check,
       day5_test7_input8 FOR TESTING RAISING cx_static_check,
       day5_test7_input9 FOR TESTING RAISING cx_static_check,
-      unkown_opcode FOR TESTING RAISING cx_static_check.
+      unkown_opcode FOR TESTING RAISING cx_static_check,
+      set_relative_base FOR TESTING RAISING cx_static_check,
+      set_relative_base_neg FOR TESTING RAISING cx_static_check,
+      copy_itself FOR TESTING RAISING cx_static_check,
+      output_16digit_num FOR TESTING RAISING cx_static_check,
+      write_to_memory_100 FOR TESTING RAISING cx_static_check,
+      immediate_input FOR TESTING RAISING cx_static_check,
+      write_immediate_param3 FOR TESTING RAISING cx_static_check,
+      write_to_memory_100_twice FOR TESTING RAISING cx_static_check,
+      write_to_5 FOR TESTING RAISING cx_static_check,
+      write_to_5_in_mem FOR TESTING RAISING cx_static_check,
+      adjust_relative_base FOR TESTING RAISING cx_static_check,
+      add_to_rel_50 FOR TESTING RAISING cx_static_check,
+      add_with_relative_base FOR TESTING RAISING cx_static_check,
+      output_large_no FOR TESTING RAISING cx_static_check.
     METHODS setup.
     METHODS create_input_double
       IMPORTING
@@ -153,7 +167,8 @@ CLASS ltcl_intcode IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD offset_1002.
-    cl_abap_unit_assert=>assert_equals( msg = 'offset' exp = 4 act = intcode->get_instruction_length( 02 ) ).
+    intcode->opcode = 2.
+    cl_abap_unit_assert=>assert_equals( msg = 'offset' exp = 4 act = intcode->get_instruction_length( ) ).
   ENDMETHOD.
 
   METHOD output_4099.
@@ -173,7 +188,7 @@ CLASS ltcl_intcode IMPLEMENTATION.
     intcode->run( ).
     DATA(get) = intcode->demo_output->get( ).
     cl_abap_unit_assert=>assert_equals( msg = 'output 4 newline 99'
-                                        exp = |4\n99|
+                                        exp = |4,99|
                                         act = intcode->output_text ).
     cl_abap_testdouble=>verify_expectations( output_double ).
   ENDMETHOD.
@@ -184,7 +199,7 @@ CLASS ltcl_intcode IMPLEMENTATION.
     intcode->run( ).
     DATA(get) = intcode->demo_output->get( ).
     cl_abap_unit_assert=>assert_equals( msg = 'output 4 newline 4'
-                                        exp = |4\n4|
+                                        exp = |4,4|
                                         act = intcode->output_text ).
     cl_abap_testdouble=>verify_expectations( output_double ).
   ENDMETHOD.
@@ -270,8 +285,21 @@ CLASS ltcl_intcode IMPLEMENTATION.
                                         act = intcode->read( 4 ) ).
   ENDMETHOD.
 
+  METHOD immediate_input.
+    create_input_double( |8| ).
+    intcode->load( |103,0,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'read(1) = 8' exp = 8 act = intcode->read( 1 ) ).
+  ENDMETHOD.
+
+  METHOD write_immediate_param3.
+    intcode->load( |11101,2,2,0,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'read(3) = 4' exp = 4 act = intcode->read( 3 ) ).
+  ENDMETHOD.
+
   METHOD instruction_1002.
-    intcode->load( |1002| ).
+    intcode->load( |1002,1,1,2| ).
     intcode->set_opcode( 0 ).
     intcode->set_parameter( 0 ).
     cl_abap_unit_assert=>assert_initial( msg = 'instruction 1002 A initial' act = intcode->a ).
@@ -468,6 +496,16 @@ CLASS ltcl_intcode IMPLEMENTATION.
     intcode->demo_output = output_double.
   ENDMETHOD.
 
+  METHOD output_16digit_num.
+    DATA(output_double) = create_output_double( ).
+    DATA(program) = |1102,34915192,34915192,7,4,7,99,0|.
+    intcode->load( program ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = |16 digit|
+                                        exp = 16
+                                        act = strlen( intcode->output_text ) ).
+    cl_abap_testdouble=>verify_expectations( output_double ).
+  ENDMETHOD.
 
   METHOD test_input_output.
     create_input_double( input ).
@@ -480,7 +518,81 @@ CLASS ltcl_intcode IMPLEMENTATION.
                                         exp = output
                                         act = intcode->output_text ).
     cl_abap_testdouble=>verify_expectations( output_double ).
+  ENDMETHOD.
 
+  METHOD set_relative_base.
+    intcode->load( |109,19,99| ).
+    intcode->relative_base = 2000.
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = '2000 + 19' exp = 2019 act = intcode->relative_base ).
+  ENDMETHOD.
+
+  METHOD set_relative_base_neg.
+    intcode->load( |109,-19,99| ).
+    intcode->relative_base = 2019.
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = '2019 - 19' exp = 2000 act = intcode->relative_base ).
+  ENDMETHOD.
+
+  METHOD copy_itself.
+    DATA(program) = |109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99|.
+    test_input_output(
+        input   = ||
+        program = program
+        output  = program
+        msg     = |no input - pogram as output|
+    ).
+  ENDMETHOD.
+
+  METHOD write_to_memory_100.
+    intcode->load( |1101,2,2,100,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'memory[ 100 ] = 4 ' exp = 4 act = intcode->read( 100 ) ).
+  ENDMETHOD.
+
+  METHOD write_to_memory_100_twice.
+    intcode->load( |1101,2,2,100,1001,100,5,100,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'memory[ 100 ] = 104 ' exp = 9 act = intcode->read( 100 ) ).
+  ENDMETHOD.
+
+  METHOD write_to_5.
+    intcode->load( |1101,2,2,5,99,5| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'read(5) = 4 ' exp = 4 act = intcode->read( 5 ) ).
+  ENDMETHOD.
+
+  METHOD write_to_5_in_mem.
+    intcode->load( |1101,2,2,5,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'read(5) = 4 ' exp = 4 act = intcode->read( 5 ) ).
+  ENDMETHOD.
+
+  METHOD adjust_relative_base.
+    intcode->load( |109,5,109,-1,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'new base = 4' exp = 4  act = intcode->relative_base ).
+  ENDMETHOD.
+
+  METHOD add_with_relative_base.
+    intcode->load( |1101,1,1,50,1101,2,2,40,109,10,22201,30,40,50,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = '6 in rel pos 60' exp = 6 act = intcode->read( 60 ) ).
+  ENDMETHOD.
+
+  METHOD add_to_rel_50.
+    create_input_double( |10| ).
+    intcode->load( |109,50,203,5,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'read(55) = 10' exp = 10 act = intcode->read( 55 ) ).
+  ENDMETHOD.
+
+  METHOD output_large_no.
+    DATA(output_double) = create_output_double( ).
+    intcode->load( |104,1125899906842624,99| ).
+    intcode->run( ).
+    cl_abap_unit_assert=>assert_equals( msg = 'large no' exp = 1125899906842624 act = intcode->output_text ).
+    cl_abap_testdouble=>verify_expectations( output_double ).
   ENDMETHOD.
 
 ENDCLASS.

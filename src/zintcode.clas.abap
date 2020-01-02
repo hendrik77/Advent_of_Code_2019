@@ -1,4 +1,4 @@
-"! <p class="shorttext synchronized" lang="en">AoC Day 2 & 5</p>
+"! <p class="shorttext synchronized" lang="en">AoC Day 2 & 5 & 9</p>
 CLASS zintcode DEFINITION
   PUBLIC
   FINAL
@@ -9,15 +9,7 @@ CLASS zintcode DEFINITION
     METHODS load
       IMPORTING
         program TYPE string.
-    METHODS read
-      IMPORTING
-        VALUE(address) TYPE i
-      RETURNING
-        VALUE(result)  TYPE i.
-    METHODS write
-      IMPORTING
-        VALUE(address) TYPE i
-        VALUE(value)   TYPE i.
+
     METHODS save
       RETURNING
         VALUE(program) TYPE string.
@@ -26,6 +18,7 @@ CLASS zintcode DEFINITION
   PRIVATE SECTION.
     CONSTANTS immediate TYPE i VALUE 1.
     CONSTANTS position TYPE i VALUE 0.
+    CONSTANTS relative TYPE i VALUE 2.
     CONSTANTS add TYPE i VALUE 1.
     CONSTANTS multiply TYPE i VALUE 2.
     CONSTANTS input TYPE i VALUE 3.
@@ -34,36 +27,56 @@ CLASS zintcode DEFINITION
     CONSTANTS jump_if_false TYPE i VALUE 6.
     CONSTANTS less_than TYPE i VALUE 7.
     CONSTANTS equals TYPE i VALUE 8.
+    CONSTANTS adjust_relative_base TYPE i VALUE 9.
     CONSTANTS halt TYPE i VALUE 99.
+    TYPES: BEGIN OF memory_type,
+             addr  TYPE int8,
+             value TYPE int8,
+           END OF memory_type,
+           memory_table_type TYPE HASHED TABLE OF memory_type WITH UNIQUE KEY addr.
+    DATA memory TYPE memory_table_type.
     DATA prog TYPE stringtab.
     DATA parameter_mode TYPE i.
     DATA demo_input TYPE REF TO if_demo_input.
     DATA demo_output TYPE REF TO if_demo_output.
     DATA output_text TYPE string.
-    DATA: a      TYPE i,
-          b      TYPE i,
-          c      TYPE i,
-          param1 TYPE i,
-          param2 TYPE i,
-          param3 TYPE i,
-          opcode TYPE i.
+    DATA: a             TYPE i,
+          b             TYPE i,
+          c             TYPE i,
+          param1        TYPE int8,
+          param2        TYPE int8,
+          param3        TYPE int8,
+          opcode        TYPE i,
+          relative_base TYPE i.
+    METHODS read
+      IMPORTING
+        VALUE(address) TYPE int8
+      RETURNING
+        VALUE(result)  TYPE int8.
+    METHODS write
+      IMPORTING
+        VALUE(address) TYPE int8
+        VALUE(value)   TYPE int8.
     METHODS calculate
-      IMPORTING VALUE(address) TYPE i.
-    METHODS get_instruction_length
-      IMPORTING VALUE(opcode) TYPE i
-      RETURNING VALUE(length)    TYPE i.
+      IMPORTING VALUE(address) TYPE int8.
+    METHODS get_new_pointer
+      IMPORTING VALUE(old_pointer) TYPE int8
+      RETURNING VALUE(new_pointer) TYPE int8.
     METHODS get_input
-      IMPORTING VALUE(address) TYPE i.
+      IMPORTING VALUE(address) TYPE int8.
     METHODS write_output
-      IMPORTING VALUE(address) TYPE i.
+      IMPORTING VALUE(address) TYPE int8.
     METHODS set_parameter
-      IMPORTING VALUE(address) TYPE i.
+      IMPORTING VALUE(address) TYPE int8.
     METHODS set_opcode
       IMPORTING
-        VALUE(address) TYPE i.
+        VALUE(address) TYPE int8.
     METHODS log_exp
-      IMPORTING VALUE(address) TYPE i
-      RETURNING VALUE(new_address) TYPE i.
+      IMPORTING VALUE(address)     TYPE int8
+      RETURNING VALUE(new_address) TYPE int8.
+    METHODS get_instruction_length
+      RETURNING
+        VALUE(instruction_length) TYPE i.
 ENDCLASS.
 
 
@@ -77,12 +90,22 @@ CLASS zintcode IMPLEMENTATION.
 
 
   METHOD read.
-    result = VALUE i( prog[ address + 1 ] OPTIONAL ).
+    result = COND #( WHEN address >= lines( prog )
+                     THEN VALUE #( memory[ addr = address ]-value DEFAULT 0 )
+                     ELSE prog[ address + 1 ]  ).
   ENDMETHOD.
 
-
   METHOD write.
-    prog[ address + 1 ] = condense( CONV string( value ) ).
+    IF address >= lines( prog ).
+      IF line_exists( memory[ addr = address ] ).
+        memory[ addr = address ]-value = value.
+      ELSE.
+        INSERT VALUE #( addr = address value = value )
+               INTO TABLE memory.
+      ENDIF.
+    ELSE.
+      prog[ address + 1 ] = condense( CONV string( value ) ).
+    ENDIF.
   ENDMETHOD.
 
 
@@ -92,7 +115,7 @@ CLASS zintcode IMPLEMENTATION.
 
   METHOD run.
 
-    DATA(pointer) = 1.
+    DATA(pointer) = CONV int8( 1 ).
     DO.
       DATA(address) = pointer - 1." address always "- 1" -> intcode starts with 0, ABAP table index with 1
       set_opcode( address ).
@@ -100,15 +123,18 @@ CLASS zintcode IMPLEMENTATION.
       CASE opcode.
         WHEN add OR multiply.
           calculate( address ).
-          pointer = pointer + get_instruction_length( opcode ).
+          pointer = get_new_pointer( pointer ).
         WHEN input.
           get_input( address ).
-          pointer = pointer + get_instruction_length( opcode ).
+          pointer = get_new_pointer( pointer ).
         WHEN output.
           write_output( address ).
-          pointer = pointer + get_instruction_length( opcode ).
+          pointer = get_new_pointer( pointer ).
         WHEN jump_if_true OR jump_if_false OR less_than OR equals.
-          pointer = log_exp( address ) + 1.
+          pointer = log_exp( address ) + 1. "plus 1 due to abap table starts with 1 and intcode memory with 0
+        WHEN adjust_relative_base.
+          relative_base = relative_base + param1.
+          pointer = get_new_pointer( pointer ).
         WHEN halt.
           IF output_text IS NOT INITIAL.
             demo_output->display( output_text ).
@@ -136,27 +162,20 @@ CLASS zintcode IMPLEMENTATION.
         new_address = COND #( WHEN opcode = jump_if_true AND param1 <> 0
                             OR opcode = jump_if_false AND param1 = 0
                           THEN param2
-                          ELSE address + get_instruction_length( jump_if_true ) ).
+                          ELSE address + get_instruction_length( ) ).
       WHEN less_than OR equals.
         write( address = param3
                value   = COND #( WHEN opcode = less_than AND param1 < param2
                                    OR opcode = equals    AND param1 = param2
                                  THEN 1
                                  ELSE 0 ) ).
-        new_address = address + get_instruction_length( opcode ). " + 1 due to internal table starts at 0
+        new_address = address + get_instruction_length( ).
     ENDCASE.
 
   ENDMETHOD.
 
-  METHOD get_instruction_length.
-    length = COND #(  WHEN opcode = input
-                        OR opcode = output THEN 2
-                      WHEN opcode = jump_if_true
-                        OR opcode = jump_if_false THEN 3
-                      WHEN opcode = add
-                        OR opcode = multiply
-                        OR opcode = less_than
-                        OR opcode = equals THEN 4 ).
+  METHOD get_new_pointer.
+    new_pointer = old_pointer + get_instruction_length( ).
   ENDMETHOD.
 
   METHOD get_input.
@@ -169,7 +188,7 @@ CLASS zintcode IMPLEMENTATION.
   METHOD write_output.
     output_text = COND #( WHEN output_text IS INITIAL
                           THEN condense( |{ param1 }| )
-                          ELSE condense( output_text && |\n| && param1 ) ).
+                          ELSE condense( output_text && |,| && param1 ) ).
   ENDMETHOD.
 
   METHOD constructor.
@@ -207,29 +226,49 @@ CLASS zintcode IMPLEMENTATION.
                                 OR output
                                 OR jump_if_true
                                 OR jump_if_false
-                              THEN SWITCH i( LET pos = read( address + 1 ) IN
+                                OR adjust_relative_base
+                              THEN SWITCH #( LET pos = read( address + 1 ) IN
                                              c WHEN immediate THEN pos
-                                               WHEN position  THEN read( pos ) )
+                                               WHEN position  THEN read( pos )
+                                               WHEN relative  THEN read( pos + relative_base ) )
     " write position in param1 differs from read -> write to parameter or to position mentioned in parameter
                               WHEN input
-                              THEN SWITCH i( c WHEN immediate THEN address + 1
-                                               WHEN position  THEN read( address + 1 ) ) ).
+                              THEN SWITCH #( c WHEN immediate THEN address + 1
+                                               WHEN position  THEN read( address + 1 )
+                                               WHEN relative  THEN read( address + 1 ) + relative_base ) ).
     param2 = SWITCH #( opcode WHEN add
                                 OR multiply
                                 OR jump_if_true
                                 OR jump_if_false
                                 OR equals
                                 OR less_than
-                              THEN SWITCH i( LET pos = read( address + 2 ) IN
+                              THEN SWITCH #( LET pos = read( address + 2 ) IN
                                              b WHEN immediate THEN pos
-                                               WHEN position  THEN read( pos ) ) ).
+                                               WHEN position  THEN read( pos )
+                                               WHEN relative  THEN read( pos + relative_base ) ) ).
     " write position in param1 differs from read -> write to parameter pos or to position mentioned in parameter
     param3 = SWITCH #( opcode WHEN add
                                 OR multiply
                                 OR equals
                                 OR less_than
-                              THEN SWITCH i( a WHEN immediate THEN address + 3
-                                               WHEN position  THEN read( address + 3 ) ) ).
+                              THEN SWITCH #( a WHEN immediate THEN address + 3
+                                               WHEN position  THEN read( address + 3 )
+                                               WHEN relative  THEN read( address + 3 ) + relative_base ) ).
+  ENDMETHOD.
+
+
+  METHOD get_instruction_length.
+
+    instruction_length  = SWITCH #(  opcode WHEN input
+                                     OR output
+                                     OR adjust_relative_base THEN 2
+                                   WHEN jump_if_true
+                                     OR jump_if_false THEN 3
+                                   WHEN add
+                                     OR multiply
+                                     OR less_than
+                                     OR equals THEN 4 ).
+
   ENDMETHOD.
 
 ENDCLASS.
